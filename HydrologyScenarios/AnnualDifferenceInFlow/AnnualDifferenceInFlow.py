@@ -10,6 +10,8 @@ import matplotlib.ticker as mticker
 import numpy as np
 import sys
 
+
+# ==== Input and Output Setup ===
 # Input
 code_file = Path(__file__).parent # Locates code
 input_file = '10yearsMinimumHydrologyResults.xlsx' # Identifies input
@@ -17,34 +19,36 @@ input_file = '10yearsMinimumHydrologyResults.xlsx' # Identifies input
 output_file = "Differences.xlsx" # Identifies output
 output_path = code_file / 'Results' / output_file # Locates output path
 
+# === Input Data Preparation to be Used for Calculations ===
 # Read input file
-ensemble = pd.read_excel(input_file, header=0)
+ensemble = pd.read_excel(input_file, header=0) # Reads first row as column names
 
 # Identifies the Year, Start Row, and Average columns and changes them to iterable integers
-year_cols = [c for c in ensemble.columns if c.startswith("Year")]
-ensemble.loc[:, year_cols] = ensemble.loc[:, year_cols].apply(pd.to_numeric, errors='coerce')
-ensemble['Start Row'] = pd.to_numeric(ensemble['Start Row'], errors='coerce').astype('Int64')
-ensemble['Average'] = pd.to_numeric(ensemble['Average'], errors='coerce')
+year_cols = [c for c in ensemble.columns if c.startswith("Year")]   # Identifies columns that start with 'Year'
+ensemble.loc[:, year_cols] = ensemble.loc[:, year_cols].apply(pd.to_numeric, errors='coerce')   # Converts Year columns to numerics and forces errors to 'NaN'
+ensemble['Start Row'] = pd.to_numeric(ensemble['Start Row'], errors='coerce').astype('Int64')   # Converts start row to numerics
+ensemble['Average'] = pd.to_numeric(ensemble['Average'], errors='coerce')   # Converts Average column to numerics
 
-# Filter sequences by Average <= 7.5
+# Filter sequences by Average to keep sequences where average is <= 7.5
 filtered = ensemble[ensemble['Average'] <= 7.5]
 
 # Creates narrow form
 narrow_flow = filtered.melt(
     id_vars=['Ensemble', 'Trace', 'Start Row', 'Average'], # Keeps these columns the same
     value_vars=year_cols, # Turns the Year rows into a column
-    var_name='YearCol', # Identifies column above
-    value_name='Flow' # Creating column to hold flow values
+    var_name='YearCol', # Names column above
+    value_name='Flow' # Names new column for flow values
 )
 
 # Creating Indices
-narrow_flow['YearOffset'] = narrow_flow['YearCol'].str.replace("Year", "", regex=False).astype(int) # Indexes Years
+narrow_flow['YearOffset'] = narrow_flow['YearCol'].str.replace("Year", "", regex=False).astype(int) # Indexes Years into numerics
 narrow_flow['Row'] = (narrow_flow['Start Row'].astype(int) + (narrow_flow['YearOffset'] - 1)).astype(int) # Calculates row index in wide data
 
-# Keeps sequences in order then sorts the sequences by average
+# Keeps sequences in order then sorts the sequences by average, then ensemble, trace, start row, then row
 narrow_flow = narrow_flow.sort_values(by=['Average', 'Ensemble', 'Trace', 'Start Row', 'Row']).reset_index(drop=True)
 
-# Calculates annual difference by current - previous year
+# === Calculations ===
+# Calculates annual difference by current - previous year in each 10 year sequence
 narrow_flow['Difference'] = (
     narrow_flow
     .groupby(['Ensemble', 'Trace', 'Start Row'])['Flow'] # Only calculates annual difference in same 10 year sequence
