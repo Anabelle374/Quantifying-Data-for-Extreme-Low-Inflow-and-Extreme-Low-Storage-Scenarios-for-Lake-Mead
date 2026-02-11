@@ -14,27 +14,27 @@ import sys
 # ==== Input and Output Setup ===
 # Input
 code_file = Path(__file__).parent # Locates code
-input_file = '10yearsMinimumHydrologyResults.xlsx' # Identifies input
+input_file = '10yearsMinimumSumHydrologyResults.xlsx' # Identifies input
 # Output
-output_file = "Differences.xlsx" # Identifies output
+output_file = "SumDifferences.xlsx" # Identifies output
 output_path = code_file / 'Results' / output_file # Locates output path
 
 # === Input Data Preparation to be Used for Calculations ===
 # Read input file
 ensemble = pd.read_excel(input_file, header=0) # Reads first row as column names
 
-# Identifies the Year, Start Row, and Average columns and changes them to iterable integers
+# Identifies the Year, Start Row, and Sum columns and changes them to iterable integers
 year_cols = [c for c in ensemble.columns if c.startswith("Year")]   # Identifies columns that start with 'Year'
 ensemble.loc[:, year_cols] = ensemble.loc[:, year_cols].apply(pd.to_numeric, errors='coerce')   # Converts Year columns to numerics and forces errors to 'NaN'
 ensemble['Start Row'] = pd.to_numeric(ensemble['Start Row'], errors='coerce').astype('Int64')   # Converts start row to numerics
-ensemble['Average'] = pd.to_numeric(ensemble['Average'], errors='coerce')   # Converts Average column to numerics
+ensemble['Sum'] = pd.to_numeric(ensemble['Sum'], errors='coerce')   # Converts Sum column to numerics
 
-# Filter sequences by Average to keep sequences where average is <= 7.5
-filtered = ensemble[ensemble['Average'] <= 7.5]
+# Filter sequences by Sum to keep sequences where Sum is <= 75
+filtered = ensemble[ensemble['Sum'] < 75]
 
 # Creates narrow form
 narrow_flow = filtered.melt(
-    id_vars=['Ensemble', 'Trace', 'Start Row', 'Average'], # Keeps these columns the same
+    id_vars=['Ensemble', 'Trace', 'Start Row', 'Sum'], # Keeps these columns the same
     value_vars=year_cols, # Turns the Year rows into a column
     var_name='YearCol', # Names column above
     value_name='Flow' # Names new column for flow values
@@ -44,8 +44,8 @@ narrow_flow = filtered.melt(
 narrow_flow['YearOffset'] = narrow_flow['YearCol'].str.replace("Year", "", regex=False).astype(int) # Indexes Years into numerics
 narrow_flow['Row'] = (narrow_flow['Start Row'].astype(int) + (narrow_flow['YearOffset'] - 1)).astype(int) # Calculates row index in wide data
 
-# Keeps sequences in order then sorts the sequences by average, then ensemble, trace, start row, then row
-narrow_flow = narrow_flow.sort_values(by=['Average', 'Ensemble', 'Trace', 'Start Row', 'Row']).reset_index(drop=True)
+# Keeps sequences in order then sorts the sequences by Sum, then ensemble, trace, start row, then row
+narrow_flow = narrow_flow.sort_values(by=['Sum', 'Ensemble', 'Trace', 'Start Row', 'Row']).reset_index(drop=True)
 
 # === Calculations ===
 # Calculates annual difference by current - previous year in each 10 year sequence
@@ -98,7 +98,7 @@ ax.hist(hist_data, bins=edges, density=True, edgecolor='black') # Creates histog
 
 # Further definition of bin boundaries
 ax.set_xticks(np.arange(-8, 1))
-ax.set_xlim(left=-7, right=0)
+ax.set_xlim(left=-6, right=0)
 ax.set_yticks([])
 
 # Axis labels
@@ -108,7 +108,7 @@ ax.tick_params(axis='both', labelsize=20)
 fig.tight_layout()
 
 # Saves the histogram
-hist_png_path = output_path.parent / 'AnnualDecreaseInFlow.png'
+hist_png_path = output_path.parent / 'AnnualDecreaseInSumFlow.png'
 plt.savefig(hist_png_path, dpi=300, bbox_inches='tight')
 
 print(f"\nHistogram image saved to:\n {hist_png_path}")

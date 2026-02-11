@@ -1,6 +1,4 @@
-# This code answers the question: What is the change in annual flow over all Reclamation's Post-2026 ensembles and traces.
 
-# Tools
 import pandas as pd
 from pathlib import Path
 from openpyxl.worksheet.table import Table, TableStyleInfo
@@ -14,10 +12,11 @@ import sys
 # ==== Input and Output Setup ===
 # Input
 code_file = Path(__file__).parent # Locates code
-input_file = '10yearsMinimumHydrologyResults.xlsx' # Identifies input
+input_file = code_file / '10yearsMinimumHydrologyResults.xlsx' # Identifies input
 # Output
 output_file = "Differences.xlsx" # Identifies output
 output_path = code_file / 'Results' / output_file # Locates output path
+output_path.parent.mkdir(parents=True, exist_ok=True)  # (ADDED: ensure Results folder exists)
 
 # === Input Data Preparation to be Used for Calculations ===
 # Read input file
@@ -30,6 +29,7 @@ ensemble['Start Row'] = pd.to_numeric(ensemble['Start Row'], errors='coerce').as
 ensemble['Average'] = pd.to_numeric(ensemble['Average'], errors='coerce')   # Converts Average column to numerics
 
 # Filter sequences by Average to keep sequences where average is <= 7.5
+# (This filters based on the 10-year minimum-average window per TRACE)
 filtered = ensemble[ensemble['Average'] <= 7.5]
 
 # Creates narrow form
@@ -41,11 +41,23 @@ narrow_flow = filtered.melt(
 )
 
 # Creating Indices
-narrow_flow['YearOffset'] = narrow_flow['YearCol'].str.replace("Year", "", regex=False).astype(int) # Indexes Years into numerics
-narrow_flow['Row'] = (narrow_flow['Start Row'].astype(int) + (narrow_flow['YearOffset'] - 1)).astype(int) # Calculates row index in wide data
+narrow_flow['YearOffset'] = (
+    narrow_flow['YearCol']
+    .str.replace("Year", "", regex=False)
+    .astype(int)
+) # Indexes Years into numerics
+
+narrow_flow['Row'] = (
+    narrow_flow['Start Row'].astype(int)
+    + (narrow_flow['YearOffset'] - 1)
+).astype(int) # Calculates row index in wide data
 
 # Keeps sequences in order then sorts the sequences by average, then ensemble, trace, start row, then row
-narrow_flow = narrow_flow.sort_values(by=['Average', 'Ensemble', 'Trace', 'Start Row', 'Row']).reset_index(drop=True)
+narrow_flow = (
+    narrow_flow
+    .sort_values(by=['Average', 'Ensemble', 'Trace', 'Start Row', 'Row'])
+    .reset_index(drop=True)
+)
 
 # === Calculations ===
 # Calculates annual difference by current - previous year in each 10 year sequence
@@ -89,33 +101,31 @@ print(f"\nResults saved to:\n {output_path}")
 
 # Creating Histogram
 hist_df = pd.read_excel(output_path) # Reads file created above
-hist_data = (hist_df['Difference']).dropna() # Mirrors data and drops NaN's
+hist_data = -(hist_df['Difference']).dropna() # Mirrors data and drops NaN's
 fig, ax = plt.subplots() # Prepares the plot below
 
-edges = np.arange(-8, 1, 1) # Defines bin boundaries
+edges = np.arange(-0.5, 8, 1) # Defines bin boundaries
 ax.hist(hist_data, bins=edges, density=True, edgecolor='black') # Creates histogram
 
+ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1, decimals=0)) # Y-axis is percentage
 
 # Further definition of bin boundaries
-ax.set_xticks(np.arange(-8, 1))
-ax.set_xlim(left=-7, right=0)
-ax.set_yticks([])
+ax.set_xticks(np.arange(0, 8))
+ax.set_xlim(left=-0.5, right=7.5)
 
 # Axis labels
 ax.set_xlabel("Annual decrease in flow\n (million acre-feet per year)", fontsize=24)
-ax.set_ylabel("Possibilities", fontsize=26)
+ax.set_ylabel("Percentage", fontsize=26)
 ax.tick_params(axis='both', labelsize=20)
 fig.tight_layout()
 
 # Saves the histogram
-hist_png_path = output_path.parent / 'AnnualDecreaseInFlow.png'
+hist_png_path = output_path.parent / 'DecreaseInFlowConsecutive.png'
 plt.savefig(hist_png_path, dpi=300, bbox_inches='tight')
 
 print(f"\nHistogram image saved to:\n {hist_png_path}")
 
 plt.show()
-
-
 
 print("\nComplete")
 sys.exit()
